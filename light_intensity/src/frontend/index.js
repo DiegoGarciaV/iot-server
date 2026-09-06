@@ -1,5 +1,4 @@
-const ESP32_IP = "192.168.50.17";
-// const ESP32_IP = "localhost";
+const BACKEND_HOST = window.location.hostname;
 const WS_PORT = 81;
 
 let socket = null;
@@ -28,10 +27,10 @@ const innerIndicator =
 function connect() {
 
     socket = new WebSocket(
-        `ws://${ESP32_IP}:${WS_PORT}`
+        `ws://${BACKEND_HOST}:${WS_PORT}`
     );
 
-    deviceIp.textContent = ESP32_IP;
+    deviceIp.textContent = BACKEND_HOST;
 
     socket.onopen = () => {
         connectionStatus.textContent = "Ok";
