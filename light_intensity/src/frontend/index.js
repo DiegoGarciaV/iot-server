@@ -70,8 +70,8 @@ function disconnect() {
 
 function updateIndicator(ldrValue) {
 
-    const minValue = 1600;
-    const maxValue = 3000;
+    const minValue = 500;
+    const maxValue = 3900;
 
     let percentage =
         (ldrValue - minValue) /
