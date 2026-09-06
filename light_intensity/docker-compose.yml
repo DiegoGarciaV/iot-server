@@ -1,11 +1,17 @@
 services:
+
   frontend:
     image: httpd:2.4
     container_name: frontend
+    restart: unless-stopped
     ports:
       - "8080:80"
     volumes:
       - ./src/frontend:/usr/local/apache2/htdocs:ro
+    depends_on:
+      - backend
+    networks:
+      - iot_network
 
   backend:
     build:
@@ -13,11 +19,30 @@ services:
     container_name: backend
     restart: unless-stopped
     ports:
-      - "81:81"a
+      - "81:81"
     depends_on:
       - mqtt_broker
+    volumes:
+      - ./certs/ca.crt:/app/certs/ca.crt:ro
+    networks:
+      - iot_network
 
   mqtt_broker:
     build:
       context: ./src/mqtt_broker
+
     container_name: mqtt_broker
+    restart: unless-stopped
+
+    ports:
+      - "8883:8883"
+
+    volumes:
+      - ./certs/broker.crt:/mosquitto/certs/broker.crt:ro
+      - ${BROKER_KEY_PATH}:/mosquitto/certs/broker.key:ro
+    networks:
+      - iot_network
+
+networks:
+  iot_network:
+    driver: bridge

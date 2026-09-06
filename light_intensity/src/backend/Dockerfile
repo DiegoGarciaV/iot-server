@@ -8,6 +8,6 @@ COPY pyproject.toml uv.lock ./
 
 RUN uv sync --frozen --no-dev
 
-COPY main.py ./
+COPY *.py ./
 
 CMD ["uv", "run", "--no-sync", "python", "main.py"]
