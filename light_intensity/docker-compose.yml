@@ -1,0 +1,23 @@
+services:
+  frontend:
+    image: httpd:2.4
+    container_name: frontend
+    ports:
+      - "8080:80"
+    volumes:
+      - ./src/frontend:/usr/local/apache2/htdocs:ro
+
+  backend:
+    build:
+      context: ./src/backend
+    container_name: backend
+    restart: unless-stopped
+    ports:
+      - "81:81"a
+    depends_on:
+      - mqtt_broker
+
+  mqtt_broker:
+    build:
+      context: ./src/mqtt_broker
+    container_name: mqtt_broker

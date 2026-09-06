@@ -1,0 +1,13 @@
+[project]
+name = "light-intensity-backend"
+version = "0.1.0"
+description = "MQTT to WebSocket bridge for the IoT project"
+requires-python = ">=3.12"
+
+dependencies = [
+    "paho-mqtt>=2.1.0",
+    "websockets>=15.0.1",
+]
+
+[tool.uv]
+package = false

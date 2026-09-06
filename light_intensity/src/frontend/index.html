@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Light Intensity Console</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300..700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="./index.css">
+    </head>
+    <body>
+        <header>
+            <div class="name-intro">
+                <h2>ESP32 Web Interface 2026</h2>
+            </div>
+        </header>
+            <h1>Light Intensity</h1>
+        <div class="main-container">
+            <div class="connection-panel">
+                <h2>Connection details</h2>
+                <div class="text-row">
+                    <div class="row-col row-col-50">
+                        <p>Connection status:</p>
+                    </div>
+                    <div class="row-col row-col-50 text-center">
+                        <p id="connection-status">Disconected</p>
+                    </div>
+                </div>
+                <div class="text-row">
+                    <div class="row-col row-col-50">
+                        <p>Last time recived:</p>
+                    </div>
+                    <div class="row-col row-col-50 text-center">
+                        <p id="last-received">Never</p>
+                    </div>
+                </div>
+                <div class="text-row">
+                    <div class="row-col row-col-50">
+                        <p>Device IP:</p>
+                    </div>
+                    <div class="row-col row-col-50 text-center">
+                        <p id="device-ip">192.168.50.0</p>
+                    </div>
+                </div>
+                <div class="text-row">
+                    <div class="row-col row-col-50">
+                        <p>Receiving data...</p>
+                    </div>
+                   
+                </div>
+                <div class="text-row">
+                    <div class="row-col">
+                        <button
+                            id="connection-button"
+                            class="text-center connection-button">
+                            Stop Connection
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="light-indicator-container">
+                <div class="light-indicator">
+                    <div class="inner-indicator"></div>
+                </div>
+                <div class="value-indicator">
+                    <div class="indicator-bar">
+                        <div class="bar-level" id="bar-level"></div>
+                    </div>
+                </div>
+                <div class="text-row indicator-stats">
+                    <div class="row-col row-col-50">
+                        <p>Light level:</p>
+                    </div>
+                    <div class="row-col row-col-50 text-center">
+                        <p id="light-level">0</p>   
+                    </div>
+                </div>
+            </div>
+        </div>
+        <footer></footer>
+    </body>
+    <script src="./index.js"></script>
+</html>
