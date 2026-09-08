@@ -9,7 +9,7 @@ class ApplicationConfig:
 
     mqtt_broker_host: str = "mqtt_broker"
     mqtt_broker_port: int = 8883
-    mqtt_topic: str = "prueba/tema"
+    mqtt_topic: str = "sensors/ldr"
     mqtt_ca_certificate: str = "/app/certs/ca.crt"
     mqtt_client_certificate: str = "/app/certs/backend.crt"
     mqtt_client_private_key: str = "/app/certs/backend.key"
