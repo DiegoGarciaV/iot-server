@@ -36,6 +36,8 @@ class MQTTSubscriber:
 
         self._client.tls_set(
             ca_certs=self._config.mqtt_ca_certificate,
+            certfile=self._config.mqtt_client_certificate,
+            keyfile=self._config.mqtt_client_private_key,
         )
 
         self._client.connect_async(
