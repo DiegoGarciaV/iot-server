@@ -24,6 +24,8 @@ services:
       - mqtt_broker
     volumes:
       - ./certs/ca.crt:/app/certs/ca.crt:ro
+      - ./certs/backend.crt:/app/certs/backend.crt:ro
+      - ${BACKEND_KEY_PATH}:/app/certs/backend.key:ro
     networks:
       - iot_network
 
