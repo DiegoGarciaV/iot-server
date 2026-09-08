@@ -39,6 +39,7 @@ services:
 
     volumes:
       - ./certs/broker.crt:/mosquitto/certs/broker.crt:ro
+      - ./certs/ca.crt:/mosquitto/certs/ca.crt:ro
       - ${BROKER_KEY_PATH}:/mosquitto/certs/broker.key:ro
     networks:
       - iot_network
