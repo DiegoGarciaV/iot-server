@@ -1,0 +1,14 @@
+# ==========================================
+# Light Intensity
+# ==========================================
+
+# LDR sensor
+# Publishes light intensity measurements.
+user esp32
+topic write sensors/ldr
+
+
+# Backend
+# Consumes light intensity measurements.
+user light-intensity-backend
+topic read sensors/ldr
