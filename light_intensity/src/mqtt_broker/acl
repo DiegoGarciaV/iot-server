@@ -12,3 +12,12 @@ topic write sensors/ldr
 # Consumes light intensity measurements.
 user light-intensity-backend
 topic read sensors/ldr
+
+
+# ==========================================
+# Smart Locker
+# ==========================================
+
+user smart-locker
+topic read locker/+/actions/#
+topic write locker/+/events/#
