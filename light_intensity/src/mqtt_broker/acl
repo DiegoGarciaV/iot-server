@@ -21,3 +21,8 @@ topic read sensors/ldr
 user smart-locker
 topic read locker/+/actions/#
 topic write locker/+/events/#
+
+
+user light-intensity-backend
+topic write locker/+/actions/#
+topic read locker/+/events/#
