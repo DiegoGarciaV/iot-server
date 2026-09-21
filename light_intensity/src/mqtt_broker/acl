@@ -18,11 +18,23 @@ topic read sensors/ldr
 # Smart Locker
 # ==========================================
 
+# ESP32 Smart Locker
 user smart-locker
-topic read locker/+/actions/#
-topic write locker/+/events/#
+
+topic read smart-locker/session/action
+topic read smart-locker/session/action/locker/+
+
+topic write smart-locker/session/event
+topic write smart-locker/session/event/locker/+
+topic write smart-locker/locker/+/event
 
 
-user light-intensity-backend
-topic write locker/+/actions/#
-topic read locker/+/events/#
+# Smart Locker Backend
+user smart-locker-backend
+
+topic write smart-locker/session/action
+topic write smart-locker/session/action/locker/+
+
+topic read smart-locker/session/event
+topic read smart-locker/session/event/locker/+
+topic read smart-locker/locker/+/event
