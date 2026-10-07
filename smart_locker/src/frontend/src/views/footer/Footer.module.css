@@ -1,0 +1,9 @@
+.spaFooter{
+    height: 4rem;
+    padding: 1rem;
+    background-color: var(--color-primary);
+    color: var(--color-surface);
+    font-size: 1.35rem;
+    display: flex;
+    align-items: center;
+}
