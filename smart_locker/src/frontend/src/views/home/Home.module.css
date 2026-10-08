@@ -1,3 +1,21 @@
+.title {
+    margin-top: 3rem;
+    margin-bottom: 0;
+    text-align: center;
+    font-size: 2.5rem;
+    font-weight: 500;
+}
+
+.title::after {
+    content: "";
+    display: block;
+    width: 60px;
+    height: 4px;
+    margin: 0.7rem auto 0;
+    background-color: var(--color-sage);
+    border-radius: 2px;
+}
+
 .subtitle {
     margin-top: 2rem;
     text-align: center;
@@ -7,16 +25,17 @@
 
 .optionsContainer {
     display: flex;
-    justify-content: space-around;
+    justify-content: center;
     align-items: center;
+    gap: 4rem;
     padding: 1rem;
-    width: 70%;
-    margin: 5rem auto;
+    width: 86%;
+    margin: 3rem auto;
 }
 
 .actionOption {
 
-  box-shadow: 5px 5px 5px 5px var(--color-shadow);
+  box-shadow: 0 4px 12px var(--color-shadow);
   padding-top: 2rem;
   width: 30%;
   text-align: center;
@@ -31,12 +50,12 @@
 
     transform: translateY(-0.5rem);
     cursor: pointer;
-    box-shadow: 5px 5px 10px 10px var(--color-shadow);
+    box-shadow: 0 10px 24px var(--color-shadow);
 }
 
 .actionOption h2 {
 
-    padding-top: 2rem;
+    padding-top: 0;
     margin-bottom: 0.5rem;
     font-weight: 500;
     font-size: 1.85rem;
@@ -57,4 +76,36 @@
 .actionOption .imageContainer {
     width: 50%;
     margin: auto;
+}
+
+@media (max-width: 1024px) {
+
+    .optionsContainer {
+        gap: 2rem;
+    }
+
+    .actionOption {
+        width: 42%;
+    }
+
+    .actionOption h2 {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 640px) {
+
+    .optionsContainer {
+        flex-direction: column;
+        gap: 2rem;
+        margin: 2rem auto;
+    }
+
+    .actionOption {
+        width: 100%;
+    }
+
+    .actionOption .imageContainer {
+        width: 40%;
+    }
 }

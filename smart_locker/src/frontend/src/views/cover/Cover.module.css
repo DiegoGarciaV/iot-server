@@ -2,6 +2,49 @@
 .coverContainer {
 
     width: 100%;
-    height: 50vh;
-    background-color: var(--color-shadow);
+    height: 16rem;
+    margin: 0rem auto 0;
+    padding: 1rem;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+
+    color: var(--color-surface);
+    text-align: center;
+
+    --cover-overlay: color-mix(in srgb, var(--color-primary) 70%, transparent);
+    background-color: var(--color-primary);
+    background-image:
+        linear-gradient(var(--cover-overlay), var(--cover-overlay)),
+        url("/images/cover.png");
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+    box-shadow: 0 4px 12px var(--color-shadow);
+}
+
+.coverContainer h1 {
+
+    margin: 0;
+    font-size: 3.5rem;
+    font-weight: 600;
+}
+
+.accent {
+
+    width: 45px;
+    height: 4px;
+    margin: 0.75rem 0;
+
+    background-color: var(--color-accent);
+    border-radius: 2px;
+}
+
+.tagline {
+
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 400;
 }

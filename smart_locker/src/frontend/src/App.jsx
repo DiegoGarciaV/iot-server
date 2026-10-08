@@ -10,12 +10,14 @@ const SmartLockerDashboard = () => {
     return (
         <Router>
             <Header></Header>
-            <Routes>
-                <Route 
-                    path="/" 
-                    element={<Home />} 
-                />
-            </Routes>
+            <div className="spa-container">
+                <Routes>
+                    <Route 
+                        path="/" 
+                        element={<Home />} 
+                    />
+                </Routes>
+            </div>
             <Footer></Footer>
         </Router>
     )

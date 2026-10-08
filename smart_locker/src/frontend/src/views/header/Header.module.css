@@ -6,8 +6,35 @@
     color: var(--color-surface);
     font-size: 1.35rem;
     display: flex;
+    justify-content: space-between;
     align-items: center;
     position: fixed;
     top: 0;
     left: 0;
+    z-index: 10;
+}
+
+.headerTitle {
+
+    text-decoration: none;
+    color: var(--color-surface);
+}
+
+.headerLinks {
+
+    display: flex;
+    gap: 1.5rem;
+    font-size: 1.1rem;
+}
+
+.headerLinks a {
+
+    text-decoration: none;
+    color: var(--color-surface);
+    transition: color 0.5s;
+}
+
+.headerLinks a:hover {
+
+    color: var(--color-border);
 }

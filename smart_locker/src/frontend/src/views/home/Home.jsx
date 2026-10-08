@@ -9,7 +9,7 @@ const Home = () => {
     return (
         <div className={styles.homeContainer}>
             <Cover></Cover>
-            <h1>¿Qué quieres hacer hoy?</h1>
+            <h2 className={styles.title}>¿Qué quieres hacer hoy?</h2>
             <p className={styles.subtitle}>
                 Reserva un locker o revisa el estado de tu pedido.
             </p>
