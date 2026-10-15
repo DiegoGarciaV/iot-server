@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Cover from "../cover/Cover";
 import ActionOption from "./ActionOption";
+import HomeInfo from "./HomeInfo";
 
 import styles from './Home.module.css'
 
@@ -29,6 +30,7 @@ const Home = () => {
                     Consultar mi pedido
                 </ActionOption>
             </div>
+            <HomeInfo></HomeInfo>
         </div>
     )
 }
