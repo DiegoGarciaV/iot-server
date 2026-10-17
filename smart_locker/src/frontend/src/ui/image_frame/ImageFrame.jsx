@@ -8,7 +8,7 @@ const ImageFrame = ({ children, filter=true }) => {
         <div className={styles.imageFrame}>
             <div 
                 className={`${styles.imgFilter} ${filter ? styles.bluredFilter : ""}`}
-                style={{background: `url('${children}')`}}
+                style={{backgroundImage: `url('${children}')`}}
             >
                 <img src={children} alt=""/>
             </div>
