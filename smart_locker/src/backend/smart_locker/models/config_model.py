@@ -5,6 +5,11 @@ from dataclasses import dataclass
 class ApplicationConfig:
     """Application connection settings."""
 
+    db_user: str
+    db_password: str
+    db_host: str = "localhost"
+    db_database: str = "smart_locker"
+    
     mqtt_broker_host: str = "mqtt_broker"
     mqtt_broker_port: int = 8883
     mqtt_subscribe_topics: tuple[str, ...] = (
@@ -19,3 +24,4 @@ class ApplicationConfig:
 
     websocket_host: str = "0.0.0.0"
     websocket_port: int = 81
+    

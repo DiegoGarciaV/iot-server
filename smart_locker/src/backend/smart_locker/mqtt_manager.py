@@ -4,7 +4,7 @@ from concurrent.futures import Future
 
 import paho.mqtt.client as mqtt
 
-from models import ApplicationConfig
+from smart_locker.models.config_model import ApplicationConfig
 
 
 MessageHandler = Callable[[str, str], Awaitable[None]]
