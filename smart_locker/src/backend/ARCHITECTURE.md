@@ -1,6 +1,6 @@
 # Arquitectura del backend — Smart Locker
 
-Este documento resume las decisiones de diseño del backend. Distingue lo que ya está implementado de lo que está planeado.
+Este documento resume las decisiones de diseño del backend. Distingue lo que ya está implementado de lo que está planeado. Lo que el backend debe hacer está en [USE_CASES.md](USE_CASES.md).
 
 ## Resumen
 
@@ -8,10 +8,12 @@ El backend es **un solo servicio** (un contenedor, un proceso): una app de **Fas
 
 La separación entre REST y MQTT se hace **por capas dentro del código**, no por contenedores. REST, MQTT y WebSocket son puntos de entrada delgados que traducen su protocolo y delegan en una **capa de servicios** común, donde vive toda la lógica de negocio.
 
+El "Frontend" de este documento es el **FE web** (reservar, consultar pedido, generar tokens). El FE local que sirve el ESP32 frente al locker habla solo con el ESP32; al backend le llega por MQTT.
+
 ```
-            ESP32                         Frontend
-              │ MQTT                    REST │  │ WebSocket
-              ▼                              ▼  ▼
+            ESP32                      FE web
+              │ MQTT                 REST │  │ WebSocket
+              ▼                           ▼  ▼
 ┌─────────────────────────────────────────────────────────┐
 │  backend (FastAPI, 1 proceso)                           │
 │                                                         │
@@ -36,7 +38,7 @@ La separación entre REST y MQTT se hace **por capas dentro del código**, no po
 
 Se descartó por estas razones:
 
-- **El camino de regreso.** El backend también publica en MQTT (`session/action`). Las acciones que inicia el FE obligarían a que la API llamara al contenedor MQTT, o a tener dos clientes MQTT.
+- **El camino de regreso.** Validar un `TOKEN_ENTERED` termina publicando `START_*` o `ACCESS_DENIED`. Con dos contenedores, cada evento haría un viaje de ida y vuelta por HTTP entre ellos, o ambos necesitarían cliente MQTT.
 - **El WebSocket hub** debe vivir donde se conocen los eventos y el estado, así que todo terminaría convergiendo en la API de todas formas.
 - **El salto HTTP puede perder eventos.** Si la API está caída cuando llega un evento, el PUBACK de QoS 1 ya se envió al broker y el evento se pierde, salvo que se implementen reintentos e idempotencia.
 - **Más piezas sin beneficio.** No hay necesidad de escalar las partes por separado, desplegarlas de forma independiente ni de equipos distintos.
@@ -54,7 +56,7 @@ mqtt/handlers.py ──import──▶ services/ ◀──import── api/route
 
 | Capa | Responsabilidad | Conoce MQTT/HTTP |
 |---|---|---|
-| `main.py` | *Composition root*: crea y conecta todas las piezas; arranca y detiene MQTT en el `lifespan` | Sí |
+| `main.py` | *Composition root*: crea y conecta todas las piezas; arranca y detiene MQTT y las tareas periódicas en el `lifespan` | Sí |
 | `api/` | Routers REST y endpoint WebSocket. Traducen HTTP a llamadas a servicios | HTTP |
 | `mqtt/` | `MQTTManager`, despachador de tópicos, handlers y publisher. Traducen MQTT a llamadas a servicios y servicios a MQTT | MQTT |
 | `services/` | Lógica de negocio | **No** |
@@ -68,33 +70,68 @@ mqtt/handlers.py ──import──▶ services/ ◀──import── api/route
 
 Los servicios son clases que reciben sus dependencias (adapters, publisher, WS hub) en `__init__`. `main.py` las construye. Es el mismo patrón que `LockerAdapter(connector)` y permite usar dependencias falsas en los tests.
 
+Se eligieron clases en lugar de funciones que reciben las dependencias como parámetros porque esas dependencias habría que pasarlas en cada llamada desde cada handler y router, y terminarían centralizándose de todas formas. La clase es esa centralización: las dependencias se inyectan una sola vez.
+
+Reglas:
+
+1. **Un servicio por responsabilidad del dominio**, no uno que lo haga todo. Si un servicio pasa de unas 4 dependencias, probablemente está haciendo demasiado.
+2. **Todo se construye en `main.py`.** Ningún servicio crea sus propias dependencias.
+3. **Sin ciclos entre servicios.** Si dos servicios se necesitan mutuamente, la lógica compartida va a un tercer componente o a una función pura.
+4. **Lógica pura en funciones sueltas.** Transiciones de estado, validaciones y cálculos no necesitan `self` y se testean sin armar nada.
+5. **Opcional:** tipar las dependencias externas (publisher, WS hub) con un `Protocol` definido en `services/`, para que `services/` no dependa ni indirectamente de `mqtt/` o `api/`.
+
+### Servicios planeados
+
+| Servicio | Casos de uso | Dependencias |
+|---|---|---|
+| `LockerService` | CU-1, CU-8 | `LockerAdapter` |
+| `ReservationService` | CU-2, CU-3, CU-9, CU-10 | `LockerAdapter`, `ReservationAdapter`, `AccessTokenAdapter`, WS hub |
+| `AccessService` | CU-4a, CU-4 | `LockerAdapter`, `AccessTokenAdapter`, publisher, WS hub |
+| `OperationService` | CU-5, CU-6, CU-7, CU-11 | `LockerAdapter`, `ReservationAdapter`, WS hub |
+
 ## Flujos
 
-Hay dos flujos en el mismo proceso, y **ambos pasan por `services/`**. Un evento del ESP32 nunca se reenvía directo de MQTT a WebSocket: primero el servicio actualiza el estado en la DB y decide qué notificar al FE.
+Hay dos flujos en el mismo proceso, y **ambos pasan por `services/`**. Un evento del ESP32 nunca se reenvía directo de MQTT a WebSocket: primero el servicio actualiza el estado en la DB y decide qué publicar y qué notificar.
 
-### Flujo 1 — Tiempo real (lo inicia el ESP32)
+### Flujo 1 — Eventos del ESP32
 
 ```
 ESP32 → MQTT → dispatch → handler → service → DB (actualiza estado)
-                                           └→ WS hub → FE (notifica)
+                                           ├→ publisher → MQTT → ESP32 (solo en TOKEN_ENTERED)
+                                           └→ WS hub → FE web (notifica)
 ```
 
-### Flujo 2 — Peticiones (las inicia el FE)
+### Flujo 2 — Peticiones del FE web
 
 ```
-FE → REST → router → service → DB (consulta o guarda)
-                            └→ publisher → MQTT → ESP32 (si hay que actuar)
-              ← respuesta HTTP
+FE web → REST → router → service → DB (consulta o guarda)
+                                └→ WS hub → FE web (si cambió una reserva)
+                 ← respuesta HTTP
 ```
 
-### Ciclo completo de una acción del FE
+**REST nunca publica en MQTT.** Toda acción hacia el ESP32 es la respuesta a un `TOKEN_ENTERED`. El FE web no abre lockers: el usuario abre el locker frente a él, ingresando un token en el FE local del ESP32.
 
-El publish es "dispara y olvida": que `publish` regrese `True` solo significa que el mensaje se encoló.
+### Tareas periódicas
 
-1. El FE hace `POST /sessions`. El servicio valida, guarda y publica `open_locker`.
-2. El endpoint responde **`202 Accepted`** con estado `pending`, no "locker abierto".
-3. El ESP32 abre el locker y publica el evento correspondiente.
-4. Ese evento entra por el flujo 1: el servicio actualiza la DB y notifica al FE por WebSocket.
+Algunos casos de uso no los dispara ninguna entrada: expirar reservas sin depósito (CU-10) y revertir operaciones colgadas (CU-11). Se implementan como una tarea `asyncio` que arranca en el `lifespan` y llama periódicamente al servicio correspondiente.
+
+### Ciclo completo de un depósito
+
+```
+1. FE web   POST reserva                 → backend asigna locker: available → reserved
+2. FE web   POST token de apertura       → backend crea AccessToken(DEPOSIT)
+3. Usuario  ingresa el token en el FE local del ESP32
+4. ESP32    session/event  TOKEN_ENTERED → backend valida, marca el token usado,
+                                           reserved → depositing
+5. backend  session/action/locker/{id}  START_DEPOSIT
+6. ESP32    abre, detecta paquete, espera que cierre la puerta
+7. ESP32    session/event/locker/{id}  DEPOSIT_COMPLETED
+8. backend  depositing → occupied; notifica al FE web por WebSocket
+```
+
+La recogida es igual con un token `PICKUP`, `START_PICKUP` y `PICKUP_COMPLETED`, que termina en `available`. Los fallos están en [USE_CASES.md](USE_CASES.md#cu-7--operación-fallida).
+
+El publish es "dispara y olvida": que `publish` regrese `True` solo significa que el mensaje se encoló. Como el protocolo no tiene ACK, si un `START_*` se pierde lo detecta CU-11.
 
 ## Piezas clave
 
@@ -104,9 +141,9 @@ El publish es "dispara y olvida": que `publish` regrese `True` solo significa qu
 
 ```python
 ROUTES = {
-    "smart-locker/locker/+/event": on_locker_event,
     "smart-locker/session/event": on_session_event,
     "smart-locker/session/event/locker/+": on_session_locker_event,
+    "smart-locker/locker/+/event": on_locker_event,
 }
 
 async def dispatch(topic: str, payload: str) -> None:
@@ -118,18 +155,34 @@ async def dispatch(topic: str, payload: str) -> None:
 
 ### Handlers MQTT
 
-Equivalen a un router REST: parsean el tópico, validan el payload con pydantic y llaman al servicio.
+Equivalen a un router REST: parsean el tópico, validan el payload con pydantic y llaman al servicio. Dentro de un tópico, el campo `type` del payload decide qué método del servicio se llama.
 
 ```python
-async def on_locker_event(topic: str, payload: str) -> None:
-    locker_id = int(topic.split("/")[2])                 # smart-locker/locker/3/event
-    event = LockerEvent.model_validate_json(payload)
-    await locker_service.handle_event(locker_id, event)
+async def on_session_locker_event(topic: str, payload: str) -> None:
+    locker_id = int(topic.split("/")[-1])                # smart-locker/session/event/locker/3
+    event = SessionLockerEvent.model_validate_json(payload)
+
+    match event.type:
+        case "DEPOSIT_COMPLETED":
+            await operation_service.deposit_completed(locker_id, event.session_id)
+        case "PICKUP_COMPLETED":
+            await operation_service.pickup_completed(locker_id, event.session_id)
+        case "OPERATION_FAILED":
+            await operation_service.operation_failed(locker_id, event.session_id, event.reason)
 ```
+
+Eventos por tópico (protocolo congelado del ESP32):
+
+| Tópico | `type` | Payload |
+|---|---|---|
+| `smart-locker/session/event` | `TOKEN_ENTERED` | `type`, `sessionId`, `token` |
+| `smart-locker/session/event/locker/{id}` | `DEPOSIT_COMPLETED`, `PICKUP_COMPLETED` | `type`, `sessionId` |
+| `smart-locker/session/event/locker/{id}` | `OPERATION_FAILED` | `type`, `sessionId`, `reason` |
+| `smart-locker/locker/{id}/event` | `LOCKER_RECOVERED` | `type` |
 
 ### Publisher MQTT
 
-Vive en `mqtt/` y expone métodos de dominio. Los tópicos y los formatos de payload quedan encapsulados aquí, así que el servicio solo ve `open_locker(locker_id)`.
+Vive en `mqtt/` y expone métodos de dominio. Los tópicos y los formatos de payload quedan encapsulados aquí, así que el servicio solo ve `start_deposit(locker_id, session_id)`.
 
 ```python
 class LockerCommandPublisher:
@@ -137,16 +190,34 @@ class LockerCommandPublisher:
     def __init__(self, mqtt_manager: MQTTManager) -> None:
         self.mqtt_manager = mqtt_manager
 
-    def open_locker(self, locker_id: int) -> bool:
+    def start_deposit(self, locker_id: int, session_id: str) -> bool:
+        return self._publish_locker_action(locker_id, "START_DEPOSIT", session_id)
+
+    def start_pickup(self, locker_id: int, session_id: str) -> bool:
+        return self._publish_locker_action(locker_id, "START_PICKUP", session_id)
+
+    def deny_access(self, session_id: str) -> bool:
+        return self.mqtt_manager.publish(
+            topic="smart-locker/session/action",
+            payload=json.dumps({
+                "type": "ACCESS_DENIED",
+                "sessionId": session_id,
+                "reason": "INVALID_CREDENTIALS",
+            }),
+        )
+
+    def _publish_locker_action(self, locker_id: int, action: str, session_id: str) -> bool:
         return self.mqtt_manager.publish(
             topic=f"smart-locker/session/action/locker/{locker_id}",
-            payload=json.dumps({"action": "open"}),
+            payload=json.dumps({"type": action, "sessionId": session_id}),
         )
 ```
 
-`MQTTManager.publish` no bloquea (paho encola el mensaje y lo envía su hilo de red), así que se puede llamar desde endpoints async.
+`MQTTManager.publish` no bloquea (paho encola el mensaje y lo envía su hilo de red), así que se puede llamar desde código async.
 
-Opcional, para una separación más estricta: definir en `services/` un `Protocol` con `open_locker` y tipar el parámetro del servicio con él.
+### `MQTTManager`
+
+Ya implementado. Se conecta con **mTLS**: `tls_set` recibe el CA y además el certificado y la llave del backend (`smart-locker-backend`). El broker exige certificado de cliente (`require_certificate true`) y usa su CN como usuario para el ACL (`use_identity_as_username true`).
 
 ### `main.py` y `lifespan`
 
@@ -157,18 +228,25 @@ El `MQTTManager` necesita el event loop de uvicorn, que solo existe dentro del `
 async def lifespan(app: FastAPI):
     mqtt_manager = MQTTManager(config, dispatch, asyncio.get_running_loop())
     publisher = LockerCommandPublisher(mqtt_manager)
-    session_service = SessionService(locker_adapter, publisher)
+    access_service = AccessService(locker_adapter, access_token_adapter, publisher, ws_hub)
+    ...
     mqtt_manager.start()
+    periodic = asyncio.create_task(run_periodic_tasks(reservation_service, operation_service))
     yield
+    periodic.cancel()
     mqtt_manager.stop()
 
 app = FastAPI(lifespan=lifespan)
-app.include_router(lockers_router)
+app.include_router(reservations_router)
 ```
 
 ### WebSocket hub
 
-Se conserva la lógica actual de `WebSocketHub`: autenticar con el primer mensaje (el token), agrupar clientes por sesión, `send_to` y `disconnect`. Se servirá como **endpoint WebSocket de FastAPI**, en el mismo puerto que el REST, en lugar de un servidor aparte con la librería `websockets`. Hay que cambiar `ServerConnection` por el `WebSocket` de Starlette, y `broadcast` por un envío a cada cliente.
+Se conserva la lógica actual de `WebSocketHub`: autenticar con el primer mensaje, agrupar clientes, `send_to` y `disconnect`. Cambia esto:
+
+- **Se agrupa por reserva, no por sesión.** El primer mensaje es el **código de reserva** y el `authenticator` lo resuelve a un `reservation_id`. Hay que renombrar `session_id` en el hub para no confundirlo con el `sessionId` del ESP32.
+- Se servirá como **endpoint WebSocket de FastAPI**, en el mismo puerto que el REST, en lugar de un servidor aparte con la librería `websockets`. Hay que cambiar `ServerConnection` por el `WebSocket` de Starlette, y `broadcast` por un envío a cada cliente.
+- Cuando una reserva termina, el servicio llama a `disconnect(reservation_id)`.
 
 ## Ejecución
 
@@ -176,7 +254,7 @@ Se conserva la lógica actual de `WebSocketHub`: autenticar con el primer mensaj
 uvicorn smart_locker.main:app --host 0.0.0.0 --port 8000
 ```
 
-- **Un solo worker, siempre.** Con `--workers N`, cada proceso tendría su propio `MQTTManager` y su propio WS hub: los eventos se procesarían N veces y los clientes WebSocket quedarían repartidos entre procesos.
+- **Un solo worker, siempre.** Con `--workers N`, cada proceso tendría su propio `MQTTManager`, su propio WS hub y sus propias tareas periódicas: los eventos se procesarían N veces y los clientes WebSocket quedarían repartidos entre procesos.
 - En desarrollo se puede usar `--reload`. Cada recarga reconecta MQTT, y `MQTTManager` ya lo maneja (usa `connect_async` y se vuelve a suscribir en `_on_connect`).
 
 ## Estructura del proyecto
@@ -185,6 +263,8 @@ uvicorn smart_locker.main:app --host 0.0.0.0 --port 8000
 backend/
 ├── pyproject.toml          # paquete instalable (hatchling, uv package = true)
 ├── uv.lock
+├── ARCHITECTURE.md
+├── USE_CASES.md
 ├── smart_locker/
 │   ├── main.py             # (planeado) FastAPI app + lifespan
 │   ├── api/                # (planeado) routers REST + endpoint WS
@@ -204,6 +284,7 @@ backend/
 - **Imports absolutos desde el paquete:** `from smart_locker.adapters.base_adapter import ...`. El paquete se instala en modo editable con `uv sync`, así que los imports funcionan desde cualquier directorio.
 - **Usar `python`, no `python3`, en Windows.** El venv solo trae `python.exe`; `python3` apunta al Python global de la Microsoft Store. También se puede usar `uv run python ...`.
 - **Tablas de MySQL en singular** (`locker`), igual que las entidades (`LockerModel`, `LockerAdapter`).
+- **"Sesión" es del ESP32.** En el backend, la entidad persistente es la reserva (`Reservation`). `sessionId` solo aparece en los payloads MQTT.
 - **Adapters genéricos:** cada adapter declara su modelo y su tabla.
 
   ```python
@@ -229,15 +310,56 @@ CREATE TABLE IF NOT EXISTS locker (
 
 Los valores del `ENUM` deben coincidir con `LockerStatus`.
 
+### Cambios planeados
+
+```sql
+ALTER TABLE locker
+    ADD COLUMN status_since DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+CREATE TABLE IF NOT EXISTS reservation (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    code VARCHAR(32) NOT NULL,
+    locker_id INT UNSIGNED NOT NULL,
+    status ENUM('active', 'completed', 'cancelled', 'expired', 'failed')
+        NOT NULL DEFAULT 'active',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NULL,
+    closed_at DATETIME NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY (code),
+    FOREIGN KEY (locker_id) REFERENCES locker (id)
+);
+
+CREATE TABLE IF NOT EXISTS access_token (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    reservation_id INT UNSIGNED NOT NULL,
+    token CHAR(8) NOT NULL,
+    purpose ENUM('deposit', 'pickup') NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY (token),
+    FOREIGN KEY (reservation_id) REFERENCES reservation (id)
+);
+```
+
+`status_since` sirve para detectar operaciones colgadas (CU-11).
+
 ## Pendientes
 
-- [ ] Crear `main.py` con FastAPI y el `lifespan`.
+- [ ] Agregar `fastapi`, `uvicorn` y `pytest` (dev) a `pyproject.toml`. Quitar `websockets` cuando el hub use FastAPI.
+- [ ] Crear `main.py` con FastAPI, el `lifespan` y las tareas periódicas.
 - [ ] Mover `mqtt_manager.py` a `mqtt/` y agregar el despachador, los handlers y el publisher.
-- [ ] Crear la capa `services/` (`LockerService`, `SessionService`).
-- [ ] Adaptar `WebSocketHub` a FastAPI y exponerlo como endpoint.
-- [ ] Definir los endpoints del FE (mínimo: disponibilidad de lockers, crear o reservar sesión, token para el WS, cancelar).
-- [ ] Definir los modelos de los payloads MQTT (por ejemplo, `LockerEvent`).
-- [ ] Extender `DBConnector` para escrituras (`commit`) y agregar `create`, `update` y `delete` al adapter base.
+- [ ] Definir los modelos pydantic de los payloads MQTT (eventos y acciones de la tabla de handlers).
+- [ ] Modelos y adapters de `Reservation` y `AccessToken`; migrar el esquema.
+- [ ] Crear la capa `services/` (`LockerService`, `ReservationService`, `AccessService`, `OperationService`).
+- [ ] Adaptar `WebSocketHub` a FastAPI, agrupar por reserva y exponerlo como endpoint.
+- [ ] Implementar los endpoints del FE web: disponibilidad, reservar, consultar, generar token, cancelar.
+- [ ] Extender `DBConnector` para escrituras con **transacciones** (CU-4 marca el token usado y cambia el locker en una sola transacción) y agregar `create`, `update` y `delete` al adapter base.
 - [ ] Alinear el tipo de `params` en `DBConnector.run_query` (hoy es `Dict`) con `get_by_key`, que pasa una tupla.
+- [ ] Alerta en el log por `ACCESS_DENIED` repetidos (5 en 2 minutos).
 - [ ] Migrar los scripts de `tests/` a pytest con fixtures en `conftest.py`.
 - [ ] Dockerfile del backend y servicio en `docker-compose.yml`.
+
+Las decisiones de negocio están en [USE_CASES.md](USE_CASES.md#decisiones).
