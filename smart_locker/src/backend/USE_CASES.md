@@ -12,7 +12,7 @@ El protocolo MQTT con el ESP32 está congelado y documentado en `IoT-FCiencias-2
 |---|---|---|
 | Dónde corre | Lo sirve el ESP32 en `192.168.4.1` (AP `SmartLocker`) | Lo sirve este servidor |
 | Para qué | Ingresar el token **frente al locker** y seguir la operación física | Reservar, consultar el pedido y generar tokens de apertura |
-| Con quién habla | Solo con el ESP32 (HTTP + WS) | Con el backend (REST + WS) |
+| Con quién habla | Solo con el ESP32 (HTTP + WS) | Con el backend (solo REST) |
 
 El backend **nunca habla con el FE local**. Todo lo que pasa frente al locker le llega por MQTT.
 
@@ -80,7 +80,7 @@ depositing | picking_up ──CU-7 (DOOR_LEFT_OPEN)──▶ unavailable ──C
 |---|---|---|---|
 | CU-1 | Consultar disponibilidad | FE web, REST | — |
 | CU-2 | Reservar | FE web, REST | El backend asigna un locker `available` → `reserved` y crea la `Reservation` |
-| CU-3 | Consultar pedido | FE web, REST + WS | — |
+| CU-3 | Consultar pedido | FE web, REST | — |
 | CU-4a | Generar token de apertura | FE web, REST | Crea un `AccessToken` e invalida los anteriores |
 | CU-4 | Validar token ingresado en el locker | MQTT `TOKEN_ENTERED` | `START_DEPOSIT`, `START_PICKUP` o `ACCESS_DENIED` |
 | CU-5 | Depósito completado | MQTT `DEPOSIT_COMPLETED` | `depositing → occupied` |
@@ -91,7 +91,7 @@ depositing | picking_up ──CU-7 (DOOR_LEFT_OPEN)──▶ unavailable ──C
 | CU-10 | Expirar reserva sin depósito | Tarea periódica | `reserved → available`, reserva `expired` |
 | CU-11 | Operación colgada | Tarea periódica | Revertir `depositing` / `picking_up` |
 
-Cada cambio de estado de una reserva se notifica al FE web por WebSocket a los clientes de esa reserva.
+El FE web se entera de los cambios de estado consultando periódicamente (CU-3). El backend no empuja notificaciones.
 
 ### CU-1 — Consultar disponibilidad
 
@@ -107,12 +107,12 @@ Si no hay lockers disponibles, responde `409 Conflict`.
 
 ### CU-3 — Consultar pedido
 
-Con el código de reserva, el FE web obtiene el estado actual por REST y luego abre el WebSocket para recibir cambios en vivo.
+Con el código de reserva, el FE web obtiene el estado actual por REST.
 
-- El WebSocket se autentica con el código de reserva como **primer mensaje**, no en la URL.
-- Al reconectar, el FE vuelve a consultar por REST, porque pudo perder eventos mientras estuvo desconectado.
+- Mientras la página de "Consultar mi pedido" está abierta, el FE repite la consulta cada **5 segundos**. Así el seguimiento es casi en tiempo real sin que el backend tenga que empujar nada.
+- El FE deja de consultar cuando la reserva termina (`completed`, `cancelled`, `expired`, `failed`).
+- El código de reserva va en un header (`Authorization`), no en la URL, para que no quede en los logs.
 - Si el plazo de recogida venció (ver CU-5), la consulta lo indica con un mensaje.
-- Cuando la reserva termina (`completed`, `cancelled`, `expired`, `failed`), el backend cierra los WebSockets de esa reserva.
 
 ### CU-4a — Generar token de apertura
 
@@ -163,7 +163,7 @@ Entrada: `smart-locker/session/event/locker/{lockerId}` con `DEPOSIT_COMPLETED`.
 
 Entrada: `smart-locker/session/event/locker/{lockerId}` con `PICKUP_COMPLETED`.
 
-`picking_up → available`. La reserva pasa a `completed` y se cierran sus WebSockets.
+`picking_up → available`. La reserva pasa a `completed`.
 
 ### CU-7 — Operación fallida
 

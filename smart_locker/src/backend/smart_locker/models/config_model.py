@@ -12,6 +12,8 @@ class ApplicationConfig:
     
     mqtt_broker_host: str = "mqtt_broker"
     mqtt_broker_port: int = 8883
+    mqtt_client_id: str = "smart-locker-worker"
+    mqtt_reconnect_delay: float = 5.0
     mqtt_subscribe_topics: tuple[str, ...] = (
         "smart-locker/session/event",
         "smart-locker/session/event/locker/+",
