@@ -1,0 +1,44 @@
+# Each client authenticates with its certificate, and its CN is the user
+# below (use_identity_as_username). Every app keeps its topics under its
+# own prefix, so apps sharing this broker cannot read each other's data.
+
+# ==========================================
+# Light Intensity
+# ==========================================
+
+# LDR sensor
+# Publishes light intensity measurements.
+user esp32
+topic write light-intensity/sensors/ldr
+
+
+# Backend
+# Consumes light intensity measurements.
+user light-intensity-backend
+topic read light-intensity/sensors/ldr
+
+
+# ==========================================
+# Smart Locker
+# ==========================================
+
+# ESP32 Smart Locker
+user smart-locker
+
+topic read smart-locker/session/action
+topic read smart-locker/session/action/locker/+
+
+topic write smart-locker/session/event
+topic write smart-locker/session/event/locker/+
+topic write smart-locker/locker/+/event
+
+
+# Smart Locker Backend
+user smart-locker-backend
+
+topic write smart-locker/session/action
+topic write smart-locker/session/action/locker/+
+
+topic read smart-locker/session/event
+topic read smart-locker/session/event/locker/+
+topic read smart-locker/locker/+/event

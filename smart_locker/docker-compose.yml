@@ -12,24 +12,6 @@ services:
     networks:
       - smart_locker_network
 
-
-  mqtt_broker:
-    build:
-      context: ./src/mqtt_broker
-
-    container_name: mqtt_broker
-    restart: unless-stopped
-
-    ports:
-      - "8883:8883"
-
-    volumes:
-      - ./certs/broker.crt:/mosquitto/certs/broker.crt:ro
-      - ./certs/ca.crt:/mosquitto/certs/ca.crt:ro
-      - ${BROKER_KEY_PATH}:/mosquitto/certs/broker.key:ro
-    networks:
-      - smart_locker_network
-
 networks:
   smart_locker_network:
     driver: bridge

@@ -20,32 +20,18 @@ services:
     restart: unless-stopped
     ports:
       - "81:81"
-    depends_on:
-      - mqtt_broker
     volumes:
-      - ./certs/ca.crt:/app/certs/ca.crt:ro
+      - ../mqtt_broker/certs/ca.crt:/app/certs/ca.crt:ro
       - ./certs/backend.crt:/app/certs/backend.crt:ro
       - ${BACKEND_KEY_PATH}:/app/certs/backend.key:ro
     networks:
       - iot_network
-
-  mqtt_broker:
-    build:
-      context: ./src/mqtt_broker
-
-    container_name: mqtt_broker
-    restart: unless-stopped
-
-    ports:
-      - "8883:8883"
-
-    volumes:
-      - ./certs/broker.crt:/mosquitto/certs/broker.crt:ro
-      - ./certs/ca.crt:/mosquitto/certs/ca.crt:ro
-      - ${BROKER_KEY_PATH}:/mosquitto/certs/broker.key:ro
-    networks:
-      - iot_network
+      - iot_mqtt
 
 networks:
   iot_network:
     driver: bridge
+
+  # Created by mqtt_broker/docker-compose.yml, which must be up first.
+  iot_mqtt:
+    external: true

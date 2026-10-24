@@ -1,0 +1,25 @@
+services:
+
+  mqtt_broker:
+    build:
+      context: .
+
+    container_name: mqtt_broker
+    restart: unless-stopped
+
+    ports:
+      - "8883:8883"
+
+    volumes:
+      - ./certs/broker.crt:/mosquitto/certs/broker.crt:ro
+      - ./certs/ca.crt:/mosquitto/certs/ca.crt:ro
+      - ${BROKER_KEY_PATH}:/mosquitto/certs/broker.key:ro
+    networks:
+      - iot_mqtt
+
+# Shared with the apps: their backends join it as an external network and
+# reach the broker by its container name, mqtt_broker.
+networks:
+  iot_mqtt:
+    name: iot_mqtt
+    driver: bridge
