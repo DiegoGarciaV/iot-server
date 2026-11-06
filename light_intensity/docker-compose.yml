@@ -1,37 +1,86 @@
 services:
-
   frontend:
     image: httpd:2.4
     container_name: frontend
     restart: unless-stopped
-    ports:
-      - "85:80"
+
     volumes:
       - ./src/frontend:/usr/local/apache2/htdocs:ro
+
     depends_on:
       - backend
+
     networks:
       - iot_network
+      - proxy
+
+    labels:
+      # Habilitar Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=dinobotica_proxy_network"
+
+      # Router HTTP
+      - "traefik.http.routers.light-intensity.rule=Host(`iot.dinobotica.mx`) && (Path(`/light-intensity`) || PathPrefix(`/light-intensity/`))"
+      - "traefik.http.routers.light-intensity.entrypoints=websecure"
+      - "traefik.http.routers.light-intensity.tls=true"
+      - "traefik.http.routers.light-intensity.service=light-intensity"
+
+      # Servicio Apache
+      - "traefik.http.services.light-intensity.loadbalancer.server.port=80"
+
+      # Middleware: redirigir /light-intensity a /light-intensity/
+      - "traefik.http.middlewares.light-intensity-slash.redirectregex.regex=^https?://([^/]+)/light-intensity$$"
+      - "traefik.http.middlewares.light-intensity-slash.redirectregex.replacement=https://$${1}/light-intensity/"
+      - "traefik.http.middlewares.light-intensity-slash.redirectregex.permanent=true"
+
+      # Middleware: eliminar /light-intensity antes de enviar a Apache
+      - "traefik.http.middlewares.light-intensity-strip.stripprefix.prefixes=/light-intensity"
+  
+      # Orden de ejecución de middlewares
+      - "traefik.http.routers.light-intensity.middlewares=light-intensity-slash,light-intensity-strip"
 
   backend:
     build:
       context: ./src/backend
-    container_name: backend
     restart: unless-stopped
-    ports:
-      - "81:81"
+
     volumes:
       - ../mqtt_broker/certs/ca.crt:/app/certs/ca.crt:ro
       - ./certs/backend.crt:/app/certs/backend.crt:ro
       - ${BACKEND_KEY_PATH}:/app/certs/backend.key:ro
+
     networks:
       - iot_network
       - iot_mqtt
+      - proxy
+
+    labels:
+      # Habilitar descubrimiento por Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=dinobotica_proxy_network"
+
+      # Router HTTPS de la API
+      - "traefik.http.routers.light-api.rule=Host(`iot.dinobotica.mx`) && (Path(`/light-intensity/api`) || PathPrefix(`/light-intensity/api/`))"
+      - "traefik.http.routers.light-api.entrypoints=websecure"
+      - "traefik.http.routers.light-api.tls=true"
+      - "traefik.http.routers.light-api.priority=100"
+      - "traefik.http.routers.light-api.service=light-api"
+
+      # Servicio y puerto interno
+      - "traefik.http.services.light-api.loadbalancer.server.port=81"
+
+      # Eliminar el prefijo antes de llegar a Python
+      - "traefik.http.middlewares.light-api-strip.stripprefix.prefixes=/light-intensity/api"
+      - "traefik.http.routers.light-api.middlewares=light-api-strip"
 
 networks:
   iot_network:
     driver: bridge
 
-  # Created by mqtt_broker/docker-compose.yml, which must be up first.
   iot_mqtt:
     external: true
+    name: iot_mqtt
+
+  proxy:
+    external: true
+    name: dinobotica_proxy_network
