@@ -1,4 +1,4 @@
-const BACKEND_HOST = window.location.hostname;
+const BACKEND_HOST = `${window.location.href}api/`;
 const WS_PORT = 81;
 
 let socket = null;
@@ -27,7 +27,7 @@ const innerIndicator =
 function connect() {
 
     socket = new WebSocket(
-        `wss://${BACKEND_HOST}:${WS_PORT}`
+        `wss://${BACKEND_HOST}`
     );
 
     deviceIp.textContent = BACKEND_HOST;
