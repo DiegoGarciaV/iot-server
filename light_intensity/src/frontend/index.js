@@ -27,7 +27,7 @@ const innerIndicator =
 function connect() {
 
     socket = new WebSocket(
-        `ws://${BACKEND_HOST}:${WS_PORT}`
+        `wss://${BACKEND_HOST}:${WS_PORT}`
     );
 
     deviceIp.textContent = BACKEND_HOST;
