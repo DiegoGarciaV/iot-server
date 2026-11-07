@@ -30,7 +30,7 @@ function connect() {
         `wss://${BACKEND_HOST}`
     );
 
-    deviceIp.textContent = BACKEND_HOST;
+    deviceIp.textContent = window.location.host;
 
     socket.onopen = () => {
         connectionStatus.textContent = "Ok";
