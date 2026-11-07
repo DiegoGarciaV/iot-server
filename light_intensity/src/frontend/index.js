@@ -1,4 +1,4 @@
-const BACKEND_HOST = `${window.location.href}api/`;
+const BACKEND_HOST = `${window.location.host}}/light-intensity/api/`;
 const WS_PORT = 81;
 
 let socket = null;
